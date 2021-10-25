@@ -1,9 +1,10 @@
 import sqlite3
 from sqlite3 import ProgrammingError, OperationalError
+import requests
 
-
-class UploadData:
-    pass
+API = '86505f1aa3416b810d7460702718476bf11f60a003fddc2b030c92dc98be2397'
+LEAGUES_ID = {'EPL': '152', 'RPL': '344', 'Serie A': '207', 'La Liga': '302', 'Ligue 1': '168', 'Bundesliga': '175'}
+COUNTRIES_ID = {'England': '44', 'Spain': '6', 'France': '3', 'Germany': '4', 'Italy': '5', 'Russia': '95'}
 
 
 class DbDispatcher:
@@ -46,3 +47,43 @@ class DbDispatcher:
 
     def close_connection(self):
         self.con.close()
+
+
+def upload_data():
+    try:
+        db = DbDispatcher('football_data.db')
+        for i in COUNTRIES_ID.values():
+            req = requests.get(f'https://apiv3.apifootball.com/?action=get_leagues&country_id={i}&APIkey={API}')
+            for dct in req.json():
+                if dct['league_id'] in LEAGUES_ID.values():
+                    db.write_data({'country_name': dct['country_name'], 'country_logo': dct['country_logo'],
+                                   'league_name': dct['league_name'], 'league_logo': dct['league_logo']}, 'leagues')
+        for i in LEAGUES_ID.values():
+            req = requests.get(f'https://apiv3.apifootball.com/?action=get_teams&league_id={i}&APIkey={API}')
+            for dct in req.json():
+                players = dct['players']
+                team_name = "{}".format(dct['team_name']).replace('\'', '')
+                db.write_data({'leag_id': str(i), 'team_name': team_name, 'team_logo': dct['team_badge']},
+                              'teams')
+                team_id = db.select_data({'team_name': team_name}, 'teams', columns=['id'])[0][0]
+                name = "{}".format(dct['coaches'][0]['coach_name']).replace('\'', '')
+                db.write_data({'name': name, 'country': dct['coaches'][0]['coach_country'],
+                               'age': dct['coaches'][0]['coach_age'],
+                               'team_id': team_id},
+                              'coaches')
+                for player in players:
+                    name = "{}".format(player['player_name']).replace('\'', '')
+                    db.write_data({'team_id': team_id, 'image': player['player_image'], 'name': name,
+                                   'type': player['player_type'], 'age': player['player_age'],
+                                   'country': player['player_country'], 'number': player['player_number'],
+                                   'goals': player['player_goals'], 'assists': player['player_assists']}, 'players')
+        db.close_connection()
+    except ProgrammingError as e:
+        print('Programming Error')
+        print(e)
+    except OperationalError as e:
+        print('Operational Error')
+        print(e)
+    except Exception as e:
+        print('Unexpected error')
+        print(e)
