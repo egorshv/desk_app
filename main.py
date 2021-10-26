@@ -1,6 +1,7 @@
 import sqlite3
 from sqlite3 import ProgrammingError, OperationalError
 import requests
+from bs4 import BeautifulSoup
 
 API = '86505f1aa3416b810d7460702718476bf11f60a003fddc2b030c92dc98be2397'
 LEAGUES_ID = {'EPL': '152', 'RPL': '344', 'Serie A': '207', 'La Liga': '302', 'Ligue 1': '168', 'Bundesliga': '175'}
@@ -87,3 +88,29 @@ def upload_data():
     except Exception as e:
         print('Unexpected error')
         print(e)
+
+
+def get_page(url):
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 '
+                      '(KHTML, like Gecko) Chrome/95.0.4638.54 Safari/537.36'
+    }
+    req = requests.get(url, headers=headers)
+    with open('news.html', 'w', encoding='utf-8') as f:
+        f.write(req.text)
+
+
+def parsing_news():
+    url = 'https://www.sports.ru/football/news/'
+    get_page(url)
+    with open('news.html', 'r', encoding='utf-8') as f:
+        src = f.read()
+    soup = BeautifulSoup(src, 'html.parser')
+    news = soup.find_all('a', class_='short-text')
+    res = []
+    for a in news:
+        if a.get('href') and a.get('title'):
+            res.append((a.get('title'), a.get('href')))
+    return res
+
+# add_url = 'https://www.sports.ru/' (url, который надо прибавлять к res[i][1])
