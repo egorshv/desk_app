@@ -1,6 +1,10 @@
 import sqlite3
+import sys
 from sqlite3 import ProgrammingError, OperationalError
 import requests
+from PyQt5.QtWidgets import QApplication, QMainWindow
+
+from main_ui import Ui_MainWindow
 from bs4 import BeautifulSoup
 
 API = '86505f1aa3416b810d7460702718476bf11f60a003fddc2b030c92dc98be2397'
@@ -113,4 +117,22 @@ def parsing_news():
             res.append((a.get('title'), a.get('href')))
     return res
 
+
 # add_url = 'https://www.sports.ru/' (url, который надо прибавлять к res[i][1])
+
+
+class MainWindow(QMainWindow, Ui_MainWindow):
+    def __init__(self):
+        super().__init__()
+        self.setupUi(self)
+        self.setWindowTitle('Application')
+
+    def run(self):
+        pass
+
+
+if __name__ == '__main__':
+    app = QApplication(sys.argv)
+    form = MainWindow()
+    form.show()
+    sys.exit(app.exec_())
