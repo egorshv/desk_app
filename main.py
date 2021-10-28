@@ -2,8 +2,8 @@ import sqlite3
 import sys
 from sqlite3 import ProgrammingError, OperationalError
 import requests
-from PyQt5.QtWidgets import QApplication, QMainWindow
-
+from PyQt5.QtWidgets import QApplication, QMainWindow, QMessageBox
+import bcrypt
 from main_ui import Ui_MainWindow
 from bs4 import BeautifulSoup
 
@@ -28,6 +28,17 @@ class DbDispatcher:
         self.cur.execute(q)
         self.con.commit()
 
+    def update_data(self, d: dict, params: dict, table: str):
+        lst = []
+        for k, v in d.items():
+            lst.append(f"{k} = '{v}'")
+        s = ', '.join(lst)
+        arr = list(map(lambda x: f"{x[0]} = '{x[1]}'", params.items()))
+        s2 = ' AND '.join(arr)
+        q = f"""UPDATE {table} SET {s} WHERE {s2}"""
+        self.cur.execute(q)
+        self.con.commit()
+
     def read_all_data(self, table: str):
         q = f"""SELECT * FROM {table}"""
         return self.cur.execute(q).fetchall()
@@ -47,7 +58,10 @@ class DbDispatcher:
             col = ', '.join(columns)
         else:
             col = '*'
-        q = f"""SELECT {col} FROM {table} WHERE {s}"""
+        if s:
+            q = f"""SELECT {col} FROM {table} WHERE {s}"""
+        else:
+            q = f"""SELECT {col} FROM {table}"""
         return self.cur.execute(q).fetchall()
 
     def close_connection(self):
@@ -126,6 +140,43 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         super().__init__()
         self.setupUi(self)
         self.setWindowTitle('Application')
+        self.save_btn.clicked.connect(self.save_data)
+        self.db = DbDispatcher('football_data.db')
+        self.teams = self.db.select_data({}, 'teams', ['team_name'])
+        self.teams = sorted(list(map(lambda x: x[0], self.teams)))
+        self.favClub_comboBox.addItems(self.teams)
+        # данные из формы авторизации
+        self.current_login = ''
+        self.len_current_passw = 0
+        self.current_club = ''
+        self.login_lineEdit.setText(self.current_login)
+        self.passw_lineEdit.setText('*' * self.len_current_passw)
+        self.favClub_comboBox.setCurrentText(self.current_club)
+
+    def save_data(self):
+        login = self.login_lineEdit.text()
+        passw = self.passw_lineEdit.text()
+        club = self.favClub_comboBox.currentText()
+        msg = QMessageBox(self)
+        if login and passw:
+            hash = bcrypt.hashpw(passw.encode(), bcrypt.gensalt())
+            hash = str(hash).replace('\'', '')
+            db = DbDispatcher('profiles.db')
+            x = db.select_data({'name': login}, 'users')
+            if x:
+                if login == self.current_login:
+                    db.update_data({'name': login, 'password': hash, 'team_name': club}, {'name': login}, 'users')
+            else:
+                db.write_data({'name': login, 'password': hash, 'team_name': club}, 'users')
+            msg.setIcon(QMessageBox.Information)
+            msg.setText('Данные успешно сохранены')
+            db.close_connection()
+
+        else:
+            msg.setText('Не все поля заполнены')
+            msg.setIcon(QMessageBox.Warning)
+        msg.setDefaultButton(QMessageBox.Ok)
+        msg.show()
 
     def run(self):
         pass
