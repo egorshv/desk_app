@@ -190,10 +190,11 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         # данные из формы авторизации
         self.current_login = ''
         self.len_current_passw = 0
-        self.current_club = ''
+        self.current_club = 'Zenit'
         self.login_lineEdit.setText(self.current_login)
         self.passw_lineEdit.setText('*' * self.len_current_passw)
         self.favClub_comboBox.setCurrentText(self.current_club)
+        self.my_club()
         self.db.close_connection()
 
     def save_data(self):
@@ -220,6 +221,47 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             msg.setIcon(QMessageBox.Warning)
         msg.setDefaultButton(QMessageBox.Ok)
         msg.show()
+
+    def my_club(self):
+        db = DbDispatcher('football_data.db')
+        leag_id = db.select_data({'team_name': self.current_club}, 'teams', ['leag_id'])[0][0]
+        stg = get_standings(leag_id)
+        headers = ['Клуб', 'И', 'В', 'Н', 'П', 'О']
+        self.tableWidget.setRowCount(len(stg))
+        self.tableWidget.setColumnCount(len(headers))
+        self.tableWidget.setHorizontalHeaderLabels(headers)
+        for i in range(len(stg)):
+            for j in range(len(stg[i])):
+                self.tableWidget.setItem(i, j, QTableWidgetItem(stg[i][j]))
+        id = db.select_data({'team_name': self.current_club}, 'teams', ['id'])[0][0]
+        players = db.select_data({'team_id': id}, 'players', ['name', 'type', 'number'])
+        headers2 = ['Имя', 'Позиция', 'Номер']
+        self.tableWidget_2.setRowCount(len(players))
+        self.tableWidget_2.setColumnCount(len(headers2))
+        self.tableWidget_2.setHorizontalHeaderLabels(headers2)
+        for i in range(len(players)):
+            for j in range(len(players[i])):
+                self.tableWidget_2.setItem(i, j, QTableWidgetItem(str(players[i][j])))
+        gls = db.select_data({'team_id': id}, 'players', ['name', 'goals'])
+        gls.sort(key=lambda x: int(x[-1]), reverse=True)
+        gls = gls[:5]
+        assists = db.select_data({'team_id': id}, 'players', ['name', 'assists'])
+        assists.sort(key=lambda x: int(x[-1]), reverse=True)
+        assists = assists[:5]
+        headers3 = ['Имя', 'Голы']
+        self.tableWidget_6.setRowCount(len(gls))
+        self.tableWidget_6.setColumnCount(len(headers3))
+        self.tableWidget_6.setHorizontalHeaderLabels(headers3)
+        for i in range(len(gls)):
+            for j in range(len(headers3)):
+                self.tableWidget_6.setItem(i, j, QTableWidgetItem(str(gls[i][j])))
+        headers4 = ['Имя', 'Ассисты']
+        self.tableWidget_7.setRowCount(len(assists))
+        self.tableWidget_7.setColumnCount(len(headers4))
+        self.tableWidget_7.setHorizontalHeaderLabels(headers4)
+        for i in range(len(assists)):
+            for j in range(len(headers4)):
+                self.tableWidget_7.setItem(i, j, QTableWidgetItem(str(assists[i][j])))
 
     def league_change(self, text):
         leag_id = LEAGUES_ID[text]
