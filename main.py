@@ -2,14 +2,18 @@ import sqlite3
 import sys
 from sqlite3 import ProgrammingError, OperationalError
 import requests
-from PyQt5.QtWidgets import QApplication, QMainWindow, QMessageBox
+from PIL import Image
+from PyQt5.QtWidgets import QApplication, QMainWindow, QMessageBox, QTableWidgetItem
 import bcrypt
 from main_ui import Ui_MainWindow
 from bs4 import BeautifulSoup
+import matplotlib.pyplot as plt
 
 API = '86505f1aa3416b810d7460702718476bf11f60a003fddc2b030c92dc98be2397'
-LEAGUES_ID = {'EPL': '152', 'RPL': '344', 'Serie A': '207', 'La Liga': '302', 'Ligue 1': '168', 'Bundesliga': '175'}
+LEAGUES_ID = {'АПЛ': '152', 'РПЛ': '344', 'Серия А': '207', 'Ла лига': '302', 'Лига 1': '168', 'Бундеслига': '175'}
 COUNTRIES_ID = {'England': '44', 'Spain': '6', 'France': '3', 'Germany': '4', 'Italy': '5', 'Russia': '95'}
+COUNTRIES_LEAGUE = {'Russia': 'РПЛ', 'England': 'АПЛ', 'Spain': 'Ла лига', 'France': 'Лига 1', 'Germany': 'Бундеслига',
+                    'Italy': 'Серия А'}
 
 
 class DbDispatcher:
@@ -118,6 +122,28 @@ def get_page(url):
         f.write(req.text)
 
 
+def get_events(b_date, e_date, league_id):
+    req = requests.get(f'https://apiv3.apifootball.com/?action=get_events&'
+                       f'from={b_date}&to={e_date}&league_id={league_id}&APIkey={API}')
+    res = []
+    for match in req.json():
+        d = {'match_id': match['match_id'], 'league_id': match['league_id'], 'league_name': match['league_name'],
+             'match_date': match['match_date'], 'match_time': match['match_time'],
+             'match_hometeam_name': match['match_hometeam_name'], 'match_awayteam_name': match['match_awayteam_name']}
+        res.append(d)
+    return res
+
+
+def get_standings(leag_id):
+    req = requests.get(f'https://apiv3.apifootball.com/?action=get_standings&league_id={leag_id}&APIkey={API}')
+    res = []
+    for dct in req.json():
+        temp = [dct['overall_league_position'], dct['team_name'], dct['overall_league_payed'], dct['overall_league_W'],
+                dct['overall_league_D'], dct['overall_league_L'], dct['overall_league_PTS']]
+        res.append(temp)
+    return res
+
+
 def parsing_news():
     url = 'https://www.sports.ru/football/news/'
     get_page(url)
@@ -135,6 +161,23 @@ def parsing_news():
 # add_url = 'https://www.sports.ru/' (url, который надо прибавлять к res[i][1])
 
 
+def resize_img(filename, w, h):
+    img = Image.open(filename)
+    img = img.resize((w, h), Image.ADAPTIVE)
+    img.save('resized_' + filename)
+
+
+def create_graf(filename: str, players: list, vals: list, goals=True):
+    fig = plt.figure()
+    plt.xlabel('Players')
+    if goals:
+        plt.ylabel('Goals')
+    else:
+        plt.ylabel('Assists')
+    plt.bar(players, vals)
+    fig.savefig(filename)
+
+
 class MainWindow(QMainWindow, Ui_MainWindow):
     def __init__(self):
         super().__init__()
@@ -145,6 +188,12 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self.teams = self.db.select_data({}, 'teams', ['team_name'])
         self.teams = sorted(list(map(lambda x: x[0], self.teams)))
         self.favClub_comboBox.addItems(self.teams)
+        temp = self.db.select_data({}, 'leagues', ['country_name'])
+        self.leagues = []
+        for country in temp:
+            self.leagues.append(COUNTRIES_LEAGUE[country[0]])
+        self.comboBox_2.addItems(self.leagues)
+        self.comboBox_2.activated[str].connect(self.league_change)
         # данные из формы авторизации
         self.current_login = ''
         self.len_current_passw = 0
@@ -152,6 +201,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self.login_lineEdit.setText(self.current_login)
         self.passw_lineEdit.setText('*' * self.len_current_passw)
         self.favClub_comboBox.setCurrentText(self.current_club)
+        self.db.close_connection()
 
     def save_data(self):
         login = self.login_lineEdit.text()
@@ -177,6 +227,17 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             msg.setIcon(QMessageBox.Warning)
         msg.setDefaultButton(QMessageBox.Ok)
         msg.show()
+
+    def league_change(self, text):
+        leag_id = LEAGUES_ID[text]
+        stg = get_standings(leag_id)
+        headers = ['№', 'Клуб', 'И', 'В', 'Н', 'П', 'О']
+        self.tableWidget_4.setRowCount(len(stg))
+        self.tableWidget_4.setColumnCount(len(headers))
+        self.tableWidget_4.setHorizontalHeaderLabels(headers)
+        for i in range(len(stg)):
+            for j in range(len(stg[i])):
+                self.tableWidget_4.setItem(i, j, QTableWidgetItem(stg[i][j]))
 
     def run(self):
         pass
