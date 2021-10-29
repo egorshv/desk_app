@@ -18,7 +18,7 @@
     <item>
      <widget class="QTabWidget" name="tabWidget">
       <property name="currentIndex">
-       <number>4</number>
+       <number>3</number>
       </property>
       <widget class="QWidget" name="tab">
        <attribute name="title">
@@ -75,11 +75,7 @@
              </widget>
             </item>
             <item>
-             <widget class="QLabel" name="label_13">
-              <property name="text">
-               <string>TextLabel</string>
-              </property>
-             </widget>
+             <widget class="QTableWidget" name="tableWidget_3"/>
             </item>
             <item>
              <widget class="QLabel" name="label_15">
@@ -89,11 +85,7 @@
              </widget>
             </item>
             <item>
-             <widget class="QLabel" name="label_14">
-              <property name="text">
-               <string>TextLabel</string>
-              </property>
-             </widget>
+             <widget class="QTableWidget" name="tableWidget_5"/>
             </item>
            </layout>
           </item>
@@ -151,11 +143,7 @@
            </widget>
           </item>
           <item>
-           <widget class="QLabel" name="label_7">
-            <property name="text">
-             <string>TextLabel</string>
-            </property>
-           </widget>
+           <widget class="QTableWidget" name="tableWidget_6"/>
           </item>
           <item>
            <widget class="QLabel" name="label_10">
@@ -165,11 +153,7 @@
            </widget>
           </item>
           <item>
-           <widget class="QLabel" name="label_9">
-            <property name="text">
-             <string>TextLabel</string>
-            </property>
-           </widget>
+           <widget class="QTableWidget" name="tableWidget_7"/>
           </item>
          </layout>
         </item>

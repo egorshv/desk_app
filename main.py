@@ -2,12 +2,10 @@ import sqlite3
 import sys
 from sqlite3 import ProgrammingError, OperationalError
 import requests
-from PIL import Image
 from PyQt5.QtWidgets import QApplication, QMainWindow, QMessageBox, QTableWidgetItem
 import bcrypt
 from main_ui import Ui_MainWindow
 from bs4 import BeautifulSoup
-import matplotlib.pyplot as plt
 
 API = '86505f1aa3416b810d7460702718476bf11f60a003fddc2b030c92dc98be2397'
 LEAGUES_ID = {'АПЛ': '152', 'РПЛ': '344', 'Серия А': '207', 'Ла лига': '302', 'Лига 1': '168', 'Бундеслига': '175'}
@@ -138,9 +136,21 @@ def get_standings(leag_id):
     req = requests.get(f'https://apiv3.apifootball.com/?action=get_standings&league_id={leag_id}&APIkey={API}')
     res = []
     for dct in req.json():
-        temp = [dct['overall_league_position'], dct['team_name'], dct['overall_league_payed'], dct['overall_league_W'],
+        temp = [dct['team_name'], dct['overall_league_payed'], dct['overall_league_W'],
                 dct['overall_league_D'], dct['overall_league_L'], dct['overall_league_PTS']]
         res.append(temp)
+    return res
+
+
+def get_top_players(leag_id):
+    req = requests.get(f'https://apiv3.apifootball.com/?action=get_topscorers&league_id={leag_id}&APIkey={API}')
+    res = []
+    lst = []
+    for dct in req.json():
+        temp = [dct['player_name'], dct['goals'], dct['assists']]
+        if temp[0] not in lst:
+            res.append(temp)
+            lst.append(temp[0])
     return res
 
 
@@ -159,23 +169,6 @@ def parsing_news():
 
 
 # add_url = 'https://www.sports.ru/' (url, который надо прибавлять к res[i][1])
-
-
-def resize_img(filename, w, h):
-    img = Image.open(filename)
-    img = img.resize((w, h), Image.ADAPTIVE)
-    img.save('resized_' + filename)
-
-
-def create_graf(filename: str, players: list, vals: list, goals=True):
-    fig = plt.figure()
-    plt.xlabel('Players')
-    if goals:
-        plt.ylabel('Goals')
-    else:
-        plt.ylabel('Assists')
-    plt.bar(players, vals)
-    fig.savefig(filename)
 
 
 class MainWindow(QMainWindow, Ui_MainWindow):
@@ -231,13 +224,40 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     def league_change(self, text):
         leag_id = LEAGUES_ID[text]
         stg = get_standings(leag_id)
-        headers = ['№', 'Клуб', 'И', 'В', 'Н', 'П', 'О']
+        headers = ['Клуб', 'И', 'В', 'Н', 'П', 'О']
         self.tableWidget_4.setRowCount(len(stg))
         self.tableWidget_4.setColumnCount(len(headers))
         self.tableWidget_4.setHorizontalHeaderLabels(headers)
         for i in range(len(stg)):
             for j in range(len(stg[i])):
                 self.tableWidget_4.setItem(i, j, QTableWidgetItem(stg[i][j]))
+        lst = get_top_players(leag_id)
+        assists = list(filter(lambda x: x[-1], lst))
+        assists.sort(key=lambda x: int(x[-1]), reverse=True)
+        self.tableWidget_3.setRowCount(5)
+        self.tableWidget_3.setColumnCount(2)
+        self.tableWidget_3.setHorizontalHeaderLabels(['Имя', 'Голы'])
+        in_table = []
+        for i in range(5):
+            for j in range(len(lst[i]) - 1):
+                if j == 0:
+                    if lst[i][j] not in in_table:
+                        self.tableWidget_3.setItem(i, j, QTableWidgetItem(lst[i][j]))
+                        in_table.append(lst[i][j])
+                    else:
+                        continue
+                else:
+                    self.tableWidget_3.setItem(i, j, QTableWidgetItem(lst[i][j]))
+        self.tableWidget_5.setRowCount(len(assists))
+        self.tableWidget_5.setColumnCount(2)
+        self.tableWidget_5.setHorizontalHeaderLabels(['Имя', 'Ассисты'])
+        arr = []
+        for item in assists:
+            arr.append([item[0], item[2]])
+        itr = len(assists) if len(assists) < 5 else 5
+        for i in range(itr):
+            for j in range(len(arr[i])):
+                self.tableWidget_5.setItem(i, j, QTableWidgetItem(arr[i][j]))
 
     def run(self):
         pass
