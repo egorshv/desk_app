@@ -2,8 +2,9 @@ import sqlite3
 import sys
 from sqlite3 import ProgrammingError, OperationalError
 import requests
-from PyQt5.QtWidgets import QApplication, QMainWindow, QMessageBox, QTableWidgetItem
-import bcrypt
+from PyQt5.QtWidgets import QApplication, QMainWindow, QMessageBox, QTableWidgetItem, QDialog
+
+from form_ui import Ui_Form
 from main_ui import Ui_MainWindow
 from bs4 import BeautifulSoup
 
@@ -12,6 +13,8 @@ LEAGUES_ID = {'АПЛ': '152', 'РПЛ': '344', 'Серия А': '207', 'Ла л
 COUNTRIES_ID = {'England': '44', 'Spain': '6', 'France': '3', 'Germany': '4', 'Italy': '5', 'Russia': '95'}
 COUNTRIES_LEAGUE = {'Russia': 'РПЛ', 'England': 'АПЛ', 'Spain': 'Ла лига', 'France': 'Лига 1', 'Germany': 'Бундеслига',
                     'Italy': 'Серия А'}
+TEAMS = ''
+CURRENT_USER_ID = 0
 
 
 class DbDispatcher:
@@ -65,6 +68,10 @@ class DbDispatcher:
         else:
             q = f"""SELECT {col} FROM {table}"""
         return self.cur.execute(q).fetchall()
+
+    def get_max_id(self, table):
+        q = f"""SELECT MAX(id) FROM {table}"""
+        return self.cur.execute(q).fetchone()
 
     def close_connection(self):
         self.con.close()
@@ -170,17 +177,67 @@ def parsing_news():
 
 # add_url = 'https://www.sports.ru/' (url, который надо прибавлять к res[i][1])
 
+class CustomDialog(QDialog, Ui_Form):
+    def __init__(self):
+        super().__init__()
+        self.setWindowTitle("Form")
+        self.setupUi(self)
+        self.pushButton.clicked.connect(self.enter)
+        self.pushButton_2.clicked.connect(self.discard)
+        self.comboBox.addItems(TEAMS)
+
+    def enter(self):
+        global CURRENT_USER_ID
+        db = DbDispatcher('profiles.db')
+        user_names = db.select_data({}, 'users', ['id', 'name', 'password'])
+        login = self.lineEdit.text()
+        club = self.comboBox.currentText()
+        flag = True
+        passw = self.lineEdit_2.text()
+        if login and passw:
+            for i in user_names:
+                if login in i:
+                    if passw == i[2]:
+                        CURRENT_USER_ID = i[0]
+                        self.close()
+                        flag = False
+                        break
+                    else:
+                        msg = QMessageBox(self)
+                        msg.setIcon(QMessageBox.Warning)
+                        msg.setText('Проверьте корректность данных')
+                        msg.setDefaultButton(QMessageBox.Ok)
+                        flag = False
+                        msg.show()
+                        break
+            if flag:
+                db.write_data({'name': login, 'password': passw, 'team_name': club}, 'users')
+                CURRENT_USER_ID = int(db.get_max_id('users')[0])
+                self.close()
+        else:
+            msg2 = QMessageBox(self)
+            msg2.setIcon(QMessageBox.Warning)
+            msg2.setText('Не все поля заполнены')
+            msg2.setDefaultButton(QMessageBox.Ok)
+            msg2.show()
+
+    def discard(self):
+        quit()
+
 
 class MainWindow(QMainWindow, Ui_MainWindow):
     def __init__(self):
+        global TEAMS
         super().__init__()
         self.setupUi(self)
         self.setWindowTitle('Application')
         self.save_btn.clicked.connect(self.save_data)
         self.db = DbDispatcher('football_data.db')
+        self.db_prof = DbDispatcher('profiles.db')
         self.teams = self.db.select_data({}, 'teams', ['team_name'])
         self.teams = sorted(list(map(lambda x: x[0], self.teams)))
         self.favClub_comboBox.addItems(self.teams)
+        TEAMS = self.teams
         temp = self.db.select_data({}, 'leagues', ['country_name'])
         self.leagues = []
         for country in temp:
@@ -188,14 +245,18 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self.comboBox_2.addItems(self.leagues)
         self.comboBox_2.activated[str].connect(self.league_change)
         # данные из формы авторизации
-        self.current_login = ''
-        self.len_current_passw = 0
-        self.current_club = 'Zenit'
+        self.dlg = CustomDialog()
+        self.dlg.setModal(True)
+        self.dlg.show()
+        self.dlg.exec()
+        user_data = self.db_prof.select_data({'id': CURRENT_USER_ID}, 'users', ['name', 'password', 'team_name'])[0]
+        self.current_login = user_data[0]
+        self.len_current_passw = len(user_data[1])
+        self.current_club = user_data[2]
         self.login_lineEdit.setText(self.current_login)
         self.passw_lineEdit.setText('*' * self.len_current_passw)
         self.favClub_comboBox.setCurrentText(self.current_club)
         self.my_club()
-        self.db.close_connection()
 
     def save_data(self):
         login = self.login_lineEdit.text()
@@ -203,15 +264,13 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         club = self.favClub_comboBox.currentText()
         msg = QMessageBox(self)
         if login and passw:
-            hash = bcrypt.hashpw(passw.encode(), bcrypt.gensalt())
-            hash = str(hash).replace('\'', '')
             db = DbDispatcher('profiles.db')
             x = db.select_data({'name': login}, 'users')
             if x:
                 if login == self.current_login:
-                    db.update_data({'name': login, 'password': hash, 'team_name': club}, {'name': login}, 'users')
+                    db.update_data({'name': login, 'password': passw, 'team_name': club}, {'name': login}, 'users')
             else:
-                db.write_data({'name': login, 'password': hash, 'team_name': club}, 'users')
+                db.write_data({'name': login, 'password': passw, 'team_name': club}, 'users')
             msg.setIcon(QMessageBox.Information)
             msg.setText('Данные успешно сохранены')
             db.close_connection()
