@@ -2,7 +2,11 @@ import sqlite3
 import sys
 from sqlite3 import ProgrammingError, OperationalError
 import requests
+from PyQt5.QtCore import Qt
 from PyQt5.QtWidgets import QApplication, QMainWindow, QMessageBox, QTableWidgetItem, QDialog
+from datetime import datetime
+
+from pyqt5_plugins.examplebutton import QtWidgets
 
 from form_ui import Ui_Form
 from main_ui import Ui_MainWindow
@@ -14,7 +18,12 @@ COUNTRIES_ID = {'England': '44', 'Spain': '6', 'France': '3', 'Germany': '4', 'I
 COUNTRIES_LEAGUE = {'Russia': 'РПЛ', 'England': 'АПЛ', 'Spain': 'Ла лига', 'France': 'Лига 1', 'Germany': 'Бундеслига',
                     'Italy': 'Серия А'}
 TEAMS = ''
+TEXTS = []
 CURRENT_USER_ID = 0
+headers = {
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 '
+                  '(KHTML, like Gecko) Chrome/95.0.4638.54 Safari/537.36'
+}
 
 
 class DbDispatcher:
@@ -77,6 +86,14 @@ class DbDispatcher:
         self.con.close()
 
 
+def get_text():
+    news = parsing_news()
+    for n in news:
+        db = DbDispatcher('news.db')
+        db.write_data({'title': n[0]}, 'news')
+        db.close_connection()
+
+
 def upload_data():
     try:
         db = DbDispatcher('football_data.db')
@@ -118,10 +135,6 @@ def upload_data():
 
 
 def get_page(url):
-    headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 '
-                      '(KHTML, like Gecko) Chrome/95.0.4638.54 Safari/537.36'
-    }
     req = requests.get(url, headers=headers)
     with open('news.html', 'w', encoding='utf-8') as f:
         f.write(req.text)
@@ -225,6 +238,26 @@ class CustomDialog(QDialog, Ui_Form):
         quit()
 
 
+def write_matches(table, lst):
+    if lst:
+        table.setRowCount(len(lst))
+        table.setColumnCount(4)
+        table.setShowGrid(False)
+        table.setColumnWidth(0, 15)
+        table.setColumnWidth(2, 2)
+        table.setEditTriggers(QtWidgets.QAbstractItemView.NoEditTriggers)
+        table.horizontalHeader().setVisible(False)
+        table.verticalHeader().setVisible(False)
+        for i in range(len(lst)):
+            tmp = [lst[i]['match_time'], lst[i]['match_hometeam_name'], ':',
+                   lst[i]['match_awayteam_name']]
+            for j in range(4):
+                elem = QTableWidgetItem(tmp[j])
+                if j != 0:
+                    elem.setTextAlignment(Qt.AlignHCenter)
+                table.setItem(i, j, elem)
+
+
 class MainWindow(QMainWindow, Ui_MainWindow):
     def __init__(self):
         global TEAMS
@@ -246,6 +279,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self.comboBox_2.activated[str].connect(self.league_change)
         # данные из формы авторизации
         self.dlg = CustomDialog()
+        self.dlg.setStyleSheet(open('style.css').read())
         self.dlg.setModal(True)
         self.dlg.show()
         self.dlg.exec()
@@ -256,6 +290,8 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self.login_lineEdit.setText(self.current_login)
         self.passw_lineEdit.setText('*' * self.len_current_passw)
         self.favClub_comboBox.setCurrentText(self.current_club)
+        self.news()
+        self.matches()
         self.my_club()
 
     def save_data(self):
@@ -289,18 +325,27 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self.tableWidget.setRowCount(len(stg))
         self.tableWidget.setColumnCount(len(headers))
         self.tableWidget.setHorizontalHeaderLabels(headers)
+        self.tableWidget.setEditTriggers(QtWidgets.QAbstractItemView.NoEditTriggers)
+        for i in range(1, 6):
+            self.tableWidget.setColumnWidth(i, 15)
         for i in range(len(stg)):
             for j in range(len(stg[i])):
-                self.tableWidget.setItem(i, j, QTableWidgetItem(stg[i][j]))
+                elem = QTableWidgetItem(stg[i][j])
+                if j != 0:
+                    elem.setTextAlignment(Qt.AlignHCenter)
+                self.tableWidget.setItem(i, j, elem)
         id = db.select_data({'team_name': self.current_club}, 'teams', ['id'])[0][0]
         players = db.select_data({'team_id': id}, 'players', ['name', 'type', 'number'])
         headers2 = ['Имя', 'Позиция', 'Номер']
         self.tableWidget_2.setRowCount(len(players))
         self.tableWidget_2.setColumnCount(len(headers2))
         self.tableWidget_2.setHorizontalHeaderLabels(headers2)
+        self.tableWidget_2.setEditTriggers(QtWidgets.QAbstractItemView.NoEditTriggers)
         for i in range(len(players)):
             for j in range(len(players[i])):
-                self.tableWidget_2.setItem(i, j, QTableWidgetItem(str(players[i][j])))
+                elem = QTableWidgetItem(str(players[i][j]))
+                elem.setTextAlignment(Qt.AlignHCenter)
+                self.tableWidget_2.setItem(i, j, elem)
         gls = db.select_data({'team_id': id}, 'players', ['name', 'goals'])
         gls.sort(key=lambda x: int(x[-1]), reverse=True)
         gls = gls[:5]
@@ -311,16 +356,24 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self.tableWidget_6.setRowCount(len(gls))
         self.tableWidget_6.setColumnCount(len(headers3))
         self.tableWidget_6.setHorizontalHeaderLabels(headers3)
+        self.tableWidget_6.setEditTriggers(QtWidgets.QAbstractItemView.NoEditTriggers)
         for i in range(len(gls)):
             for j in range(len(headers3)):
-                self.tableWidget_6.setItem(i, j, QTableWidgetItem(str(gls[i][j])))
+                elem = QTableWidgetItem(str(gls[i][j]))
+                if j != 0:
+                    elem.setTextAlignment(Qt.AlignHCenter)
+                self.tableWidget_6.setItem(i, j, elem)
         headers4 = ['Имя', 'Ассисты']
         self.tableWidget_7.setRowCount(len(assists))
         self.tableWidget_7.setColumnCount(len(headers4))
         self.tableWidget_7.setHorizontalHeaderLabels(headers4)
+        self.tableWidget_7.setEditTriggers(QtWidgets.QAbstractItemView.NoEditTriggers)
         for i in range(len(assists)):
             for j in range(len(headers4)):
-                self.tableWidget_7.setItem(i, j, QTableWidgetItem(str(assists[i][j])))
+                elem = QTableWidgetItem(str(assists[i][j]))
+                if j != 0:
+                    elem.setTextAlignment(Qt.AlignHCenter)
+                self.tableWidget_7.setItem(i, j, elem)
 
     def league_change(self, text):
         leag_id = LEAGUES_ID[text]
@@ -329,43 +382,76 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self.tableWidget_4.setRowCount(len(stg))
         self.tableWidget_4.setColumnCount(len(headers))
         self.tableWidget_4.setHorizontalHeaderLabels(headers)
+        self.tableWidget_4.setEditTriggers(QtWidgets.QAbstractItemView.NoEditTriggers)
+        for i in range(1, 6):
+            self.tableWidget_4.setColumnWidth(i, 15)
         for i in range(len(stg)):
             for j in range(len(stg[i])):
-                self.tableWidget_4.setItem(i, j, QTableWidgetItem(stg[i][j]))
+                elem = QTableWidgetItem(stg[i][j])
+                if j != 0:
+                    elem.setTextAlignment(Qt.AlignHCenter)
+                self.tableWidget_4.setItem(i, j, elem)
         lst = get_top_players(leag_id)
         assists = list(filter(lambda x: x[-1], lst))
         assists.sort(key=lambda x: int(x[-1]), reverse=True)
         self.tableWidget_3.setRowCount(5)
         self.tableWidget_3.setColumnCount(2)
         self.tableWidget_3.setHorizontalHeaderLabels(['Имя', 'Голы'])
+        self.tableWidget_3.setEditTriggers(QtWidgets.QAbstractItemView.NoEditTriggers)
         in_table = []
         for i in range(5):
             for j in range(len(lst[i]) - 1):
+                elem = QTableWidgetItem(lst[i][j])
+                if j != 0:
+                    elem.setTextAlignment(Qt.AlignHCenter)
                 if j == 0:
                     if lst[i][j] not in in_table:
-                        self.tableWidget_3.setItem(i, j, QTableWidgetItem(lst[i][j]))
+                        self.tableWidget_3.setItem(i, j, elem)
                         in_table.append(lst[i][j])
                     else:
                         continue
                 else:
-                    self.tableWidget_3.setItem(i, j, QTableWidgetItem(lst[i][j]))
+                    self.tableWidget_3.setItem(i, j, elem)
         self.tableWidget_5.setRowCount(len(assists))
         self.tableWidget_5.setColumnCount(2)
         self.tableWidget_5.setHorizontalHeaderLabels(['Имя', 'Ассисты'])
+        self.tableWidget_5.setEditTriggers(QtWidgets.QAbstractItemView.NoEditTriggers)
         arr = []
         for item in assists:
             arr.append([item[0], item[2]])
         itr = len(assists) if len(assists) < 5 else 5
         for i in range(itr):
             for j in range(len(arr[i])):
-                self.tableWidget_5.setItem(i, j, QTableWidgetItem(arr[i][j]))
+                elem = QTableWidgetItem(arr[i][j])
+                if j != 0:
+                    elem.setTextAlignment(Qt.AlignHCenter)
+                self.tableWidget_5.setItem(i, j, elem)
 
-    def run(self):
-        pass
+    def news(self):
+        db = DbDispatcher('news.db')
+        news = db.select_data({}, 'news', ['title'])
+        news = list(map(lambda x: str(news.index(x) + 1) + '. ' + x[0] + '\n', news))
+        self.listWidget.addItems(news)
+
+    def matches(self):
+        date = datetime.today().strftime('%Y-%m-%d')
+        EPL_matches = get_events(date, date, 152)
+        RPL_matches = get_events(date, date, 344)
+        Seria_A_matches = get_events(date, date, 207)
+        La_Liga_matches = get_events(date, date, 302)
+        Ligue_1_matches = get_events(date, date, 168)
+        Bundesliga_matches = get_events(date, date, 175)
+        write_matches(self.tableWidget_8, EPL_matches)
+        write_matches(self.tableWidget_9, RPL_matches)
+        write_matches(self.tableWidget_13, Seria_A_matches)
+        write_matches(self.tableWidget_10, La_Liga_matches)
+        write_matches(self.tableWidget_12, Ligue_1_matches)
+        write_matches(self.tableWidget_11, Bundesliga_matches)
 
 
 if __name__ == '__main__':
     app = QApplication(sys.argv)
     form = MainWindow()
+    form.setStyleSheet(open('style.css').read())
     form.show()
     sys.exit(app.exec_())
