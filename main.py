@@ -34,7 +34,9 @@ class DbDispatcher:
 
     def write_data(self, d: dict, table: str):
         # d: key - столбец, value - значение
-        lst2 = [f'\'{i}\'' for i in d.values()]
+        lst2 = []
+        for i in d.values():
+            lst2.append(f'\'{i}\'')
         s1 = ', '.join(d.keys())
         s2 = ', '.join(lst2)
         assert len(d.keys()) == len(d.values())
@@ -123,33 +125,38 @@ def upload_data():
                                    'country': player['player_country'], 'number': player['player_number'],
                                    'goals': player['player_goals'], 'assists': player['player_assists']}, 'players')
         db.close_connection()
-    except ProgrammingError as e:
+    except ProgrammingError as er:
         print('Programming Error')
-        print(e)
-    except OperationalError as e:
+        print(er)
+    except OperationalError as er:
         print('Operational Error')
-        print(e)
-    except Exception as e:
+        print(er)
+    except Exception as er:
         print('Unexpected error')
-        print(e)
+        print(er)
 
 
 def get_page(url):
     req = requests.get(url, headers=headers)
     with open('news.html', 'w', encoding='utf-8') as f:
-        f.write(req.text)
+        text = req.text
+        f.write(text)
 
 
 def get_events(b_date, e_date, league_id):
     req = requests.get(f'https://apiv3.apifootball.com/?action=get_events&'
                        f'from={b_date}&to={e_date}&league_id={league_id}&APIkey={API}')
     res = []
-    for match in req.json():
-        d = {'match_id': match['match_id'], 'league_id': match['league_id'], 'league_name': match['league_name'],
-             'match_date': match['match_date'], 'match_time': match['match_time'],
-             'match_hometeam_name': match['match_hometeam_name'], 'match_awayteam_name': match['match_awayteam_name']}
-        res.append(d)
-    return res
+    if 'error' not in req.json().keys():
+        for match in req.json():
+            d = {'match_id': match['match_id'], 'league_id': match['league_id'],
+                 'league_name': match['league_name'], 'match_date': match['match_date'],
+                 'match_time': match['match_time'], 'match_hometeam_name': match['match_hometeam_name'],
+                 'match_awayteam_name': match['match_awayteam_name']}
+            res.append(d)
+        return res
+    else:
+        return []
 
 
 def get_standings(leag_id):
@@ -216,12 +223,13 @@ class CustomDialog(QDialog, Ui_Form):
                         flag = False
                         break
                     else:
-                        msg = QMessageBox(self)
-                        msg.setIcon(QMessageBox.Warning)
-                        msg.setText('Проверьте корректность данных')
-                        msg.setDefaultButton(QMessageBox.Ok)
+                        msg_ = QMessageBox(self)
+                        msg_.setIcon(QMessageBox.Warning)
+                        msg_.setWindowTitle('Ошибка')
+                        msg_.setText('Проверьте корректность данных')
+                        msg_.setDefaultButton(QMessageBox.Ok)
                         flag = False
-                        msg.show()
+                        msg_.show()
                         break
             if flag:
                 db.write_data({'name': login, 'password': passw, 'team_name': club}, 'users')
@@ -230,6 +238,7 @@ class CustomDialog(QDialog, Ui_Form):
         else:
             msg2 = QMessageBox(self)
             msg2.setIcon(QMessageBox.Warning)
+            msg2.setWindowTitle('Ошибка')
             msg2.setText('Не все поля заполнены')
             msg2.setDefaultButton(QMessageBox.Ok)
             msg2.show()
@@ -268,7 +277,8 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self.db = DbDispatcher('football_data.db')
         self.db_prof = DbDispatcher('profiles.db')
         self.teams = self.db.select_data({}, 'teams', ['team_name'])
-        self.teams = sorted(list(map(lambda x: x[0], self.teams)))
+        self.teams = list(map(lambda x: x[0], self.teams))
+        self.teams.sort()
         self.favClub_comboBox.addItems(self.teams)
         TEAMS = self.teams
         temp = self.db.select_data({}, 'leagues', ['country_name'])
@@ -347,10 +357,12 @@ class MainWindow(QMainWindow, Ui_MainWindow):
                 elem.setTextAlignment(Qt.AlignHCenter)
                 self.tableWidget_2.setItem(i, j, elem)
         gls = db.select_data({'team_id': id}, 'players', ['name', 'goals'])
-        gls.sort(key=lambda x: int(x[-1]), reverse=True)
+        gls.sort(key=lambda x: int(x[-1]))
+        gls.reverse()
         gls = gls[:5]
         assists = db.select_data({'team_id': id}, 'players', ['name', 'assists'])
-        assists.sort(key=lambda x: int(x[-1]), reverse=True)
+        assists.sort(key=lambda x: int(x[-1]))
+        assists.reverse()
         assists = assists[:5]
         headers3 = ['Имя', 'Голы']
         self.tableWidget_6.setRowCount(len(gls))
@@ -393,7 +405,8 @@ class MainWindow(QMainWindow, Ui_MainWindow):
                 self.tableWidget_4.setItem(i, j, elem)
         lst = get_top_players(leag_id)
         assists = list(filter(lambda x: x[-1], lst))
-        assists.sort(key=lambda x: int(x[-1]), reverse=True)
+        assists.sort(key=lambda x: int(x[-1]))
+        assists.reverse()
         self.tableWidget_3.setRowCount(5)
         self.tableWidget_3.setColumnCount(2)
         self.tableWidget_3.setHorizontalHeaderLabels(['Имя', 'Голы'])
@@ -419,7 +432,10 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         arr = []
         for item in assists:
             arr.append([item[0], item[2]])
-        itr = len(assists) if len(assists) < 5 else 5
+        if len(assists) < 5:
+            itr = len(assists)
+        else:
+            itr = 5
         for i in range(itr):
             for j in range(len(arr[i])):
                 elem = QTableWidgetItem(arr[i][j])
@@ -435,23 +451,50 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 
     def matches(self):
         date = datetime.today().strftime('%Y-%m-%d')
-        EPL_matches = get_events(date, date, 152)
-        RPL_matches = get_events(date, date, 344)
-        Seria_A_matches = get_events(date, date, 207)
-        La_Liga_matches = get_events(date, date, 302)
-        Ligue_1_matches = get_events(date, date, 168)
-        Bundesliga_matches = get_events(date, date, 175)
-        write_matches(self.tableWidget_8, EPL_matches)
-        write_matches(self.tableWidget_9, RPL_matches)
-        write_matches(self.tableWidget_13, Seria_A_matches)
-        write_matches(self.tableWidget_10, La_Liga_matches)
-        write_matches(self.tableWidget_12, Ligue_1_matches)
-        write_matches(self.tableWidget_11, Bundesliga_matches)
+        epl_matches = get_events(date, date, 152)
+        rpl_matches = get_events(date, date, 344)
+        seria_a_matches = get_events(date, date, 207)
+        la_liga_matches = get_events(date, date, 302)
+        ligue_1_matches = get_events(date, date, 168)
+        bundesliga_matches = get_events(date, date, 175)
+        if epl_matches:
+            write_matches(self.tableWidget_8, epl_matches)
+        else:
+            self.tableWidget_8.setItem(0, 0, QTableWidgetItem('Сегодня матчей нет'))
+        if rpl_matches:
+            write_matches(self.tableWidget_9, rpl_matches)
+        else:
+            self.tableWidget_9.setItem(0, 0, QTableWidgetItem('Сегодня матчей нет'))
+        if seria_a_matches:
+            write_matches(self.tableWidget_13, seria_a_matches)
+        else:
+            self.tableWidget_13.setItem(0, 0, QTableWidgetItem('Сегодня матчей нет'))
+        if la_liga_matches:
+            write_matches(self.tableWidget_10, la_liga_matches)
+        else:
+            self.tableWidget_10.setItem(0, 0, QTableWidgetItem('Сегодня матчей нет'))
+        if ligue_1_matches:
+            write_matches(self.tableWidget_12, ligue_1_matches)
+        else:
+            self.tableWidget_12.setItem(0, 0, QTableWidgetItem('Сегодня матчей нет'))
+        if bundesliga_matches:
+            write_matches(self.tableWidget_11, bundesliga_matches)
+        else:
+            self.tableWidget_11.setItem(0, 0, QTableWidgetItem('Сегодня матчей нет'))
 
 
 if __name__ == '__main__':
-    app = QApplication(sys.argv)
-    form = MainWindow()
-    form.setStyleSheet(open('style.css').read())
-    form.show()
-    sys.exit(app.exec_())
+    try:
+        app = QApplication(sys.argv)
+        form = MainWindow()
+        form.setStyleSheet(open('style.css').read())
+        form.show()
+        sys.exit(app.exec_())
+    except Exception as e:
+        msg = QMessageBox()
+        msg.setWindowTitle('Ошибка')
+        msg.setText(str(e))
+        msg.setDefaultButton(QMessageBox.Ok)
+        msg.setIcon(QMessageBox.Warning)
+        msg.show()
+        msg.exec()
