@@ -323,10 +323,10 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             db.close_connection()
 
         else:
-            msg.setText('Не все поля заполнены')
-            msg.setIcon(QMessageBox.Warning)
-        msg.setDefaultButton(QMessageBox.Ok)
-        msg.show()
+            msg_.setText('Не все поля заполнены')
+            msg_.setIcon(QMessageBox.Warning)
+        msg_.setDefaultButton(QMessageBox.Ok)
+        msg_.show()
 
     def my_club(self):
         db = DbDispatcher('football_data.db')
