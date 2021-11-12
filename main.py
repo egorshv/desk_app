@@ -12,7 +12,7 @@ from form_ui import Ui_Form
 from main_ui import Ui_MainWindow
 from bs4 import BeautifulSoup
 
-API = '86505f1aa3416b810d7460702718476bf11f60a003fddc2b030c92dc98be2397'
+API = '34b92796e758d54d2ba955051b81e9daa014d897dc90f601b82b81bb27e3385c'
 LEAGUES_ID = {'АПЛ': '152', 'РПЛ': '344', 'Серия А': '207', 'Ла лига': '302', 'Лига 1': '168', 'Бундеслига': '175'}
 COUNTRIES_ID = {'England': '44', 'Spain': '6', 'France': '3', 'Germany': '4', 'Italy': '5', 'Russia': '95'}
 COUNTRIES_LEAGUE = {'Russia': 'РПЛ', 'England': 'АПЛ', 'Spain': 'Ла лига', 'France': 'Лига 1', 'Germany': 'Бундеслига',
@@ -147,7 +147,10 @@ def get_events(b_date, e_date, league_id):
     req = requests.get(f'https://apiv3.apifootball.com/?action=get_events&'
                        f'from={b_date}&to={e_date}&league_id={league_id}&APIkey={API}')
     res = []
-    if 'error' not in req.json().keys():
+    try:
+        if 'error' in req.json().keys():
+            return []
+    except AttributeError:
         for match in req.json():
             d = {'match_id': match['match_id'], 'league_id': match['league_id'],
                  'league_name': match['league_name'], 'match_date': match['match_date'],
@@ -155,8 +158,6 @@ def get_events(b_date, e_date, league_id):
                  'match_awayteam_name': match['match_awayteam_name']}
             res.append(d)
         return res
-    else:
-        return []
 
 
 def get_standings(leag_id):
@@ -243,7 +244,8 @@ class CustomDialog(QDialog, Ui_Form):
             msg2.setDefaultButton(QMessageBox.Ok)
             msg2.show()
 
-    def discard(self):
+    @staticmethod
+    def discard():
         quit()
 
 
@@ -272,7 +274,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         global TEAMS
         super().__init__()
         self.setupUi(self)
-        self.setWindowTitle('Application')
+        self.setWindowTitle('Здесь могла быть ваша реклама')
         self.save_btn.clicked.connect(self.save_data)
         self.db = DbDispatcher('football_data.db')
         self.db_prof = DbDispatcher('profiles.db')
@@ -295,10 +297,10 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self.dlg.exec()
         user_data = self.db_prof.select_data({'id': CURRENT_USER_ID}, 'users', ['name', 'password', 'team_name'])[0]
         self.current_login = user_data[0]
-        self.len_current_passw = len(user_data[1])
+        self.current_passw = user_data[1]
         self.current_club = user_data[2]
         self.login_lineEdit.setText(self.current_login)
-        self.passw_lineEdit.setText('*' * self.len_current_passw)
+        self.passw_lineEdit.setText(self.current_passw)
         self.favClub_comboBox.setCurrentText(self.current_club)
         self.news()
         self.matches()
@@ -308,7 +310,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         login = self.login_lineEdit.text()
         passw = self.passw_lineEdit.text()
         club = self.favClub_comboBox.currentText()
-        msg = QMessageBox(self)
+        msg_ = QMessageBox(self)
         if login and passw:
             db = DbDispatcher('profiles.db')
             x = db.select_data({'name': login}, 'users')
@@ -317,8 +319,8 @@ class MainWindow(QMainWindow, Ui_MainWindow):
                     db.update_data({'name': login, 'password': passw, 'team_name': club}, {'name': login}, 'users')
             else:
                 db.write_data({'name': login, 'password': passw, 'team_name': club}, 'users')
-            msg.setIcon(QMessageBox.Information)
-            msg.setText('Данные успешно сохранены')
+            msg_.setIcon(QMessageBox.Information)
+            msg_.setText('Данные успешно сохранены')
             db.close_connection()
 
         else:
@@ -331,10 +333,10 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         db = DbDispatcher('football_data.db')
         leag_id = db.select_data({'team_name': self.current_club}, 'teams', ['leag_id'])[0][0]
         stg = get_standings(leag_id)
-        headers = ['Клуб', 'И', 'В', 'Н', 'П', 'О']
+        _headers = ['Клуб', 'И', 'В', 'Н', 'П', 'О']
         self.tableWidget.setRowCount(len(stg))
-        self.tableWidget.setColumnCount(len(headers))
-        self.tableWidget.setHorizontalHeaderLabels(headers)
+        self.tableWidget.setColumnCount(len(_headers))
+        self.tableWidget.setHorizontalHeaderLabels(_headers)
         self.tableWidget.setEditTriggers(QtWidgets.QAbstractItemView.NoEditTriggers)
         for i in range(1, 6):
             self.tableWidget.setColumnWidth(i, 15)
@@ -344,8 +346,8 @@ class MainWindow(QMainWindow, Ui_MainWindow):
                 if j != 0:
                     elem.setTextAlignment(Qt.AlignHCenter)
                 self.tableWidget.setItem(i, j, elem)
-        id = db.select_data({'team_name': self.current_club}, 'teams', ['id'])[0][0]
-        players = db.select_data({'team_id': id}, 'players', ['name', 'type', 'number'])
+        _id = db.select_data({'team_name': self.current_club}, 'teams', ['id'])[0][0]
+        players = db.select_data({'team_id': _id}, 'players', ['name', 'type', 'number'])
         headers2 = ['Имя', 'Позиция', 'Номер']
         self.tableWidget_2.setRowCount(len(players))
         self.tableWidget_2.setColumnCount(len(headers2))
@@ -356,11 +358,11 @@ class MainWindow(QMainWindow, Ui_MainWindow):
                 elem = QTableWidgetItem(str(players[i][j]))
                 elem.setTextAlignment(Qt.AlignHCenter)
                 self.tableWidget_2.setItem(i, j, elem)
-        gls = db.select_data({'team_id': id}, 'players', ['name', 'goals'])
+        gls = db.select_data({'team_id': _id}, 'players', ['name', 'goals'])
         gls.sort(key=lambda x: int(x[-1]))
         gls.reverse()
         gls = gls[:5]
-        assists = db.select_data({'team_id': id}, 'players', ['name', 'assists'])
+        assists = db.select_data({'team_id': _id}, 'players', ['name', 'assists'])
         assists.sort(key=lambda x: int(x[-1]))
         assists.reverse()
         assists = assists[:5]
@@ -390,10 +392,10 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     def league_change(self, text):
         leag_id = LEAGUES_ID[text]
         stg = get_standings(leag_id)
-        headers = ['Клуб', 'И', 'В', 'Н', 'П', 'О']
+        headers_ = ['Клуб', 'И', 'В', 'Н', 'П', 'О']
         self.tableWidget_4.setRowCount(len(stg))
-        self.tableWidget_4.setColumnCount(len(headers))
-        self.tableWidget_4.setHorizontalHeaderLabels(headers)
+        self.tableWidget_4.setColumnCount(len(headers_))
+        self.tableWidget_4.setHorizontalHeaderLabels(headers_)
         self.tableWidget_4.setEditTriggers(QtWidgets.QAbstractItemView.NoEditTriggers)
         for i in range(1, 6):
             self.tableWidget_4.setColumnWidth(i, 15)
@@ -451,6 +453,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 
     def matches(self):
         date = datetime.today().strftime('%Y-%m-%d')
+        # date = '2021-11-20'
         epl_matches = get_events(date, date, 152)
         rpl_matches = get_events(date, date, 344)
         seria_a_matches = get_events(date, date, 207)
