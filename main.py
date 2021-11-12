@@ -2,11 +2,10 @@ import sqlite3
 import sys
 from sqlite3 import ProgrammingError, OperationalError
 import requests
+from PyQt5 import QtCore
 from PyQt5.QtCore import Qt
 from PyQt5.QtWidgets import QApplication, QMainWindow, QMessageBox, QTableWidgetItem, QDialog
 from datetime import datetime
-
-from pyqt5_plugins.examplebutton import QtWidgets
 
 from form_ui import Ui_Form
 from main_ui import Ui_MainWindow
@@ -256,7 +255,6 @@ def write_matches(table, lst):
         table.setShowGrid(False)
         table.setColumnWidth(0, 15)
         table.setColumnWidth(2, 2)
-        table.setEditTriggers(QtWidgets.QAbstractItemView.NoEditTriggers)
         table.horizontalHeader().setVisible(False)
         table.verticalHeader().setVisible(False)
         for i in range(len(lst)):
@@ -264,6 +262,7 @@ def write_matches(table, lst):
                    lst[i]['match_awayteam_name']]
             for j in range(4):
                 elem = QTableWidgetItem(tmp[j])
+                elem.setFlags(QtCore.Qt.ItemIsEnabled)
                 if j != 0:
                     elem.setTextAlignment(Qt.AlignHCenter)
                 table.setItem(i, j, elem)
@@ -337,12 +336,12 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self.tableWidget.setRowCount(len(stg))
         self.tableWidget.setColumnCount(len(_headers))
         self.tableWidget.setHorizontalHeaderLabels(_headers)
-        self.tableWidget.setEditTriggers(QtWidgets.QAbstractItemView.NoEditTriggers)
         for i in range(1, 6):
             self.tableWidget.setColumnWidth(i, 15)
         for i in range(len(stg)):
             for j in range(len(stg[i])):
                 elem = QTableWidgetItem(stg[i][j])
+                elem.setFlags(QtCore.Qt.ItemIsEnabled)
                 if j != 0:
                     elem.setTextAlignment(Qt.AlignHCenter)
                 self.tableWidget.setItem(i, j, elem)
@@ -352,10 +351,10 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self.tableWidget_2.setRowCount(len(players))
         self.tableWidget_2.setColumnCount(len(headers2))
         self.tableWidget_2.setHorizontalHeaderLabels(headers2)
-        self.tableWidget_2.setEditTriggers(QtWidgets.QAbstractItemView.NoEditTriggers)
         for i in range(len(players)):
             for j in range(len(players[i])):
                 elem = QTableWidgetItem(str(players[i][j]))
+                elem.setFlags(QtCore.Qt.ItemIsEnabled)
                 elem.setTextAlignment(Qt.AlignHCenter)
                 self.tableWidget_2.setItem(i, j, elem)
         gls = db.select_data({'team_id': _id}, 'players', ['name', 'goals'])
@@ -370,10 +369,10 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self.tableWidget_6.setRowCount(len(gls))
         self.tableWidget_6.setColumnCount(len(headers3))
         self.tableWidget_6.setHorizontalHeaderLabels(headers3)
-        self.tableWidget_6.setEditTriggers(QtWidgets.QAbstractItemView.NoEditTriggers)
         for i in range(len(gls)):
             for j in range(len(headers3)):
                 elem = QTableWidgetItem(str(gls[i][j]))
+                elem.setFlags(QtCore.Qt.ItemIsEnabled)
                 if j != 0:
                     elem.setTextAlignment(Qt.AlignHCenter)
                 self.tableWidget_6.setItem(i, j, elem)
@@ -381,10 +380,10 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self.tableWidget_7.setRowCount(len(assists))
         self.tableWidget_7.setColumnCount(len(headers4))
         self.tableWidget_7.setHorizontalHeaderLabels(headers4)
-        self.tableWidget_7.setEditTriggers(QtWidgets.QAbstractItemView.NoEditTriggers)
         for i in range(len(assists)):
             for j in range(len(headers4)):
                 elem = QTableWidgetItem(str(assists[i][j]))
+                elem.setFlags(QtCore.Qt.ItemIsEnabled)
                 if j != 0:
                     elem.setTextAlignment(Qt.AlignHCenter)
                 self.tableWidget_7.setItem(i, j, elem)
@@ -396,12 +395,12 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self.tableWidget_4.setRowCount(len(stg))
         self.tableWidget_4.setColumnCount(len(headers_))
         self.tableWidget_4.setHorizontalHeaderLabels(headers_)
-        self.tableWidget_4.setEditTriggers(QtWidgets.QAbstractItemView.NoEditTriggers)
         for i in range(1, 6):
             self.tableWidget_4.setColumnWidth(i, 15)
         for i in range(len(stg)):
             for j in range(len(stg[i])):
                 elem = QTableWidgetItem(stg[i][j])
+                elem.setFlags(QtCore.Qt.ItemIsEnabled)
                 if j != 0:
                     elem.setTextAlignment(Qt.AlignHCenter)
                 self.tableWidget_4.setItem(i, j, elem)
@@ -412,11 +411,11 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self.tableWidget_3.setRowCount(5)
         self.tableWidget_3.setColumnCount(2)
         self.tableWidget_3.setHorizontalHeaderLabels(['Имя', 'Голы'])
-        self.tableWidget_3.setEditTriggers(QtWidgets.QAbstractItemView.NoEditTriggers)
         in_table = []
         for i in range(5):
             for j in range(len(lst[i]) - 1):
                 elem = QTableWidgetItem(lst[i][j])
+                elem.setFlags(QtCore.Qt.ItemIsEnabled)
                 if j != 0:
                     elem.setTextAlignment(Qt.AlignHCenter)
                 if j == 0:
@@ -430,7 +429,6 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self.tableWidget_5.setRowCount(len(assists))
         self.tableWidget_5.setColumnCount(2)
         self.tableWidget_5.setHorizontalHeaderLabels(['Имя', 'Ассисты'])
-        self.tableWidget_5.setEditTriggers(QtWidgets.QAbstractItemView.NoEditTriggers)
         arr = []
         for item in assists:
             arr.append([item[0], item[2]])
@@ -441,6 +439,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         for i in range(itr):
             for j in range(len(arr[i])):
                 elem = QTableWidgetItem(arr[i][j])
+                elem.setFlags(QtCore.Qt.ItemIsEnabled)
                 if j != 0:
                     elem.setTextAlignment(Qt.AlignHCenter)
                 self.tableWidget_5.setItem(i, j, elem)
