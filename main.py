@@ -83,16 +83,22 @@ class DbDispatcher:
         q = f"""SELECT MAX(id) FROM {table}"""
         return self.cur.execute(q).fetchone()
 
+    def delete_data(self, table):
+        q = f"""DELETE from {table}"""
+        self.cur.execute(q)
+
     def close_connection(self):
         self.con.close()
 
 
 def get_text():
     news = parsing_news()
+    assert len(news) > 0
+    db = DbDispatcher('news.db')
+    db.delete_data('news')
     for n in news:
-        db = DbDispatcher('news.db')
         db.write_data({'title': n[0]}, 'news')
-        db.close_connection()
+    db.close_connection()
 
 
 def upload_data():
@@ -102,8 +108,10 @@ def upload_data():
             req = requests.get(f'https://apiv3.apifootball.com/?action=get_leagues&country_id={i}&APIkey={API}')
             for dct in req.json():
                 if dct['league_id'] in LEAGUES_ID.values():
-                    db.write_data({'country_name': dct['country_name'], 'country_logo': dct['country_logo'],
-                                   'league_name': dct['league_name'], 'league_logo': dct['league_logo']}, 'leagues')
+                    db.write_data({'country_name': dct['country_name'],
+                                   'country_logo': dct['country_logo'],
+                                   'league_name': dct['league_name'],
+                                   'league_logo': dct['league_logo']}, 'leagues')
         for i in LEAGUES_ID.values():
             req = requests.get(f'https://apiv3.apifootball.com/?action=get_teams&league_id={i}&APIkey={API}')
             for dct in req.json():
@@ -119,10 +127,11 @@ def upload_data():
                               'coaches')
                 for player in players:
                     name = "{}".format(player['player_name']).replace('\'', '')
-                    db.write_data({'team_id': team_id, 'image': player['player_image'], 'name': name,
-                                   'type': player['player_type'], 'age': player['player_age'],
-                                   'country': player['player_country'], 'number': player['player_number'],
-                                   'goals': player['player_goals'], 'assists': player['player_assists']}, 'players')
+                    db.write_data({'team_id': team_id, 'image': player['player_image'],
+                                   'name': name, 'type': player['player_type'],
+                                   'age': player['player_age'], 'country': player['player_country'],
+                                   'number': player['player_number'], 'goals': player['player_goals'],
+                                   'assists': player['player_assists']}, 'players')
         db.close_connection()
     except ProgrammingError as er:
         print('Programming Error')
@@ -162,7 +171,9 @@ def get_events(b_date, e_date, league_id):
 def get_standings(leag_id):
     req = requests.get(f'https://apiv3.apifootball.com/?action=get_standings&league_id={leag_id}&APIkey={API}')
     res = []
-    for dct in req.json():
+    lst = req.json()
+    assert len(lst) > 0
+    for dct in lst:
         temp = [dct['team_name'], dct['overall_league_payed'], dct['overall_league_W'],
                 dct['overall_league_D'], dct['overall_league_L'], dct['overall_league_PTS']]
         res.append(temp)
@@ -173,7 +184,9 @@ def get_top_players(leag_id):
     req = requests.get(f'https://apiv3.apifootball.com/?action=get_topscorers&league_id={leag_id}&APIkey={API}')
     res = []
     lst = []
-    for dct in req.json():
+    arr = req.json()
+    assert len(arr) > 0
+    for dct in arr:
         temp = [dct['player_name'], dct['goals'], dct['assists']]
         if temp[0] not in lst:
             res.append(temp)
@@ -189,6 +202,7 @@ def parsing_news():
     soup = BeautifulSoup(src, 'html.parser')
     news = soup.find_all('a', class_='short-text')
     res = []
+    assert len(news) > 0
     for a in news:
         if a.get('href') and a.get('title'):
             res.append((a.get('title'), a.get('href')))
@@ -273,7 +287,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         global TEAMS
         super().__init__()
         self.setupUi(self)
-        self.setWindowTitle('Здесь могла быть ваша реклама')
+        self.setWindowTitle('App')
         self.save_btn.clicked.connect(self.save_data)
         self.db = DbDispatcher('football_data.db')
         self.db_prof = DbDispatcher('profiles.db')
@@ -452,7 +466,6 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 
     def matches(self):
         date = datetime.today().strftime('%Y-%m-%d')
-        # date = '2021-11-20'
         epl_matches = get_events(date, date, 152)
         rpl_matches = get_events(date, date, 344)
         seria_a_matches = get_events(date, date, 207)
